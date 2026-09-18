@@ -5,6 +5,8 @@ import { databases, DATABASE_ID, TOPICS_COLLECTION_ID, NOTES_COLLECTION_ID } fro
 import calendarData from './data/calendarData.json';
 import syllabusData from './data/syllabusData.js';
 import { Query } from 'appwrite';
+import PdfSetupModal from './PdfSetupModal';
+import TopicCameraModal from './TopicCameraModal';
 
 const EXPECTED_PASSWORD = import.meta.env.VITE_LOGIN_PASSWORD || 'password123';
 const TOTAL_SYLLABUS = calendarData.length;
@@ -22,6 +24,10 @@ function App() {
   const [view, setView] = useState('month');
   const [selectedDate, setSelectedDate] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const [isPdfSetupOpen, setIsPdfSetupOpen] = useState(false);
+  const [isTopicCameraOpen, setIsTopicCameraOpen] = useState(false);
+  const [pdfConfig, setPdfConfig] = useState(null);
 
   const [completedTopics, setCompletedTopics] = useState(new Set());
   const [notes, setNotes] = useState({});
@@ -192,7 +198,26 @@ function App() {
         </div>
       </div>
 
-      {isSyllabusOpen && <SyllabusModal close={() => setIsSyllabusOpen(false)} />}
+      {isSyllabusOpen && <SyllabusModal close={() => setIsSyllabusOpen(false)} openPdfSetup={() => { setIsSyllabusOpen(false); setIsPdfSetupOpen(true); }} />}
+
+      {isPdfSetupOpen && (
+        <PdfSetupModal 
+          close={() => setIsPdfSetupOpen(false)} 
+          onProceed={(config) => {
+            setPdfConfig(config);
+            setIsPdfSetupOpen(false);
+            setIsTopicCameraOpen(true);
+          }} 
+        />
+      )}
+
+      {isTopicCameraOpen && pdfConfig && (
+        <TopicCameraModal 
+          close={() => setIsTopicCameraOpen(false)} 
+          pdfConfig={pdfConfig} 
+          calendarData={calendarData} 
+        />
+      )}
 
       {isModalOpen && selectedDate && (
         <DayModal
@@ -274,7 +299,7 @@ function DayModal({ date, close, tasks, completedTopics, toggleTopic, note, save
   );
 }
 
-function SyllabusModal({ close }) {
+function SyllabusModal({ close, openPdfSetup }) {
   const [activeSubject, setActiveSubject] = useState(syllabusData[0]);
   const [showSubjectList, setShowSubjectList] = useState(false);
 
@@ -282,7 +307,12 @@ function SyllabusModal({ close }) {
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && close()}>
       <div className="modal-content animate-fade-in syllabus-modal">
         <div className="modal-header">
-          <h3 className="modal-title">Syllabus</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <h3 className="modal-title">Syllabus</h3>
+            <button className="btn btn-primary btn-sm" onClick={openPdfSetup} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '4px 8px' }}>
+              Make PDF
+            </button>
+          </div>
           <button className="btn btn-icon-bare" onClick={close}><X size={20} color="var(--text-muted)" /></button>
         </div>
 
