@@ -20,7 +20,7 @@ function App() {
   const [loginError, setLoginError] = useState(false);
   const [isSyllabusOpen, setIsSyllabusOpen] = useState(false);
 
-  const [currentDate, setCurrentDate] = useState(new Date('2026-08-23'));
+  const [currentDate, setCurrentDate] = useState(new Date('2026-09-20'));
   const [view, setView] = useState('month');
   const [selectedDate, setSelectedDate] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -118,8 +118,24 @@ function App() {
   const startDate = view === 'week' ? startOfWeek(currentDate) : startOfMonth(currentDate);
   const daysInView = eachDayOfInterval({ start: startOfWeek(startDate), end: endOfWeek(view === 'week' ? endOfWeek(currentDate) : endOfMonth(currentDate)) });
 
-  const nextPeriod = () => setCurrentDate(view === 'week' ? addDays(currentDate, 7) : addDays(currentDate, 30));
-  const prevPeriod = () => setCurrentDate(view === 'week' ? subDays(currentDate, 7) : subDays(currentDate, 30));
+  const nextPeriod = () => {
+    const newDate = view === 'week' ? addDays(currentDate, 7) : addDays(currentDate, 30);
+    if (newDate.getFullYear() > 2027 || (newDate.getFullYear() === 2027 && newDate.getMonth() > 6)) {
+      return; // Do not go after July 2027
+    }
+    setCurrentDate(newDate);
+  };
+  
+  const prevPeriod = () => {
+    const newDate = view === 'week' ? subDays(currentDate, 7) : subDays(currentDate, 30);
+    if (newDate.getFullYear() < 2026 || (newDate.getFullYear() === 2026 && newDate.getMonth() < 8)) {
+      return; // Do not go before Sep 2026
+    }
+    setCurrentDate(newDate);
+  };
+
+  const isPrevDisabled = currentDate.getFullYear() === 2026 && currentDate.getMonth() === 8 && (view === 'month' || currentDate.getDate() <= 7);
+  const isNextDisabled = currentDate.getFullYear() === 2027 && currentDate.getMonth() === 6 && (view === 'month' || currentDate.getDate() >= 25);
 
   const progressPercentage = TOTAL_SYLLABUS > 0 ? Math.round((completedTopics.size / TOTAL_SYLLABUS) * 100) : 0;
 
@@ -128,11 +144,11 @@ function App() {
       <div className="app-inner animate-fade-in">
         <header className="header">
           <div className="header-nav">
-            <button className="btn btn-outline btn-icon" onClick={prevPeriod}><ChevronLeft size={18} /></button>
+            <button className="btn btn-outline btn-icon" onClick={prevPeriod} disabled={isPrevDisabled} style={{ opacity: isPrevDisabled ? 0.5 : 1, cursor: isPrevDisabled ? 'not-allowed' : 'pointer' }}><ChevronLeft size={18} /></button>
             <h2 className="header-title">
               {format(currentDate, view === 'week' ? 'MMM d, yyyy' : 'MMMM yyyy')}
             </h2>
-            <button className="btn btn-outline btn-icon" onClick={nextPeriod}><ChevronRight size={18} /></button>
+            <button className="btn btn-outline btn-icon" onClick={nextPeriod} disabled={isNextDisabled} style={{ opacity: isNextDisabled ? 0.5 : 1, cursor: isNextDisabled ? 'not-allowed' : 'pointer' }}><ChevronRight size={18} /></button>
           </div>
 
           <div className="header-actions">
