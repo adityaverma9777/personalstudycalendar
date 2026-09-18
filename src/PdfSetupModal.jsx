@@ -3,7 +3,7 @@ import { X, Calendar } from 'lucide-react';
 import syllabusData from './data/syllabusData';
 
 export default function PdfSetupModal({ close, onProceed }) {
-  const [subject, setSubject] = useState(syllabusData[0]?.subject || '');
+  const [subject, setSubject] = useState('ALL');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [error, setError] = useState('');
@@ -21,8 +21,8 @@ export default function PdfSetupModal({ close, onProceed }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && close()}>
-      <div className="modal-content animate-fade-in setup-modal" style={{ maxWidth: '400px' }}>
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && close()} style={{ alignItems: 'center', justifyContent: 'center' }}>
+      <div className="modal-content animate-fade-in setup-modal" style={{ width: '90%', maxWidth: '400px' }}>
         <div className="modal-header">
           <h3 className="modal-title">PDF Setup</h3>
           <button className="btn btn-icon-bare" onClick={close}><X size={20} color="var(--text-muted)" /></button>
@@ -39,6 +39,7 @@ export default function PdfSetupModal({ close, onProceed }) {
               onChange={(e) => setSubject(e.target.value)}
               style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-dark)', backgroundColor: 'var(--bg-darker)', color: 'var(--text-light)' }}
             >
+              <option value="ALL">All Subjects (Auto Mode)</option>
               {syllabusData.map(s => (
                 <option key={s.subject} value={s.subject}>{s.subject}</option>
               ))}

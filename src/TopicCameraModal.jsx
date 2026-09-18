@@ -1,28 +1,43 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { X, Camera, CheckCircle2, ChevronLeft, Download } from 'lucide-react';
+import { X, Camera, CheckCircle2, ChevronLeft, Download, ChevronDown, ChevronRight } from 'lucide-react';
 import Webcam from 'react-webcam';
 import jsPDF from 'jspdf';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 
 export default function TopicCameraModal({ close, pdfConfig, calendarData }) {
   const { subject, startDate, endDate } = pdfConfig;
   
-  // Filter tasks that match subject and are within the date range
-  const tasks = useMemo(() => {
+  // Filter tasks and group by subject
+  const groupedTasks = useMemo(() => {
     const start = new Date(startDate);
     const end = new Date(endDate);
     
-    return calendarData.filter(task => {
-      if (task.subject !== subject) return false;
+    const filtered = calendarData.filter(task => {
+      if (subject !== 'ALL' && task.subject !== subject) return false;
       const taskDate = new Date(task.date);
       return taskDate >= start && taskDate <= end;
     }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    // Group by subject
+    const groups = {};
+    filtered.forEach(task => {
+      if (!groups[task.subject]) groups[task.subject] = [];
+      groups[task.subject].push(task);
+    });
+
+    return Object.keys(groups).map(key => ({
+      subject: key,
+      tasks: groups[key]
+    }));
   }, [subject, startDate, endDate, calendarData]);
 
   const [view, setView] = useState('list'); // 'list' or 'camera'
   const [activeTask, setActiveTask] = useState(null);
   const [topicImages, setTopicImages] = useState({}); // { [taskId]: [image1, image2...] }
+  const [expandedSubjects, setExpandedSubjects] = useState({});
   
+  const toggleSubject = (sub) => setExpandedSubjects(prev => ({...prev, [sub]: !prev[sub]}));
+
   const webcamRef = useRef(null);
 
   const handleCapture = React.useCallback(() => {
@@ -67,11 +82,12 @@ export default function TopicCameraModal({ close, pdfConfig, calendarData }) {
     
     let isFirstPage = true;
 
-    for (const task of tasks) {
-      const images = topicImages[task.id] || [];
-      if (images.length === 0) continue;
+    for (const group of groupedTasks) {
+      // Check if this group has ANY images
+      const groupHasImages = group.tasks.some(t => (topicImages[t.id] || []).length > 0);
+      if (!groupHasImages) continue;
 
-      // Add a blank white page for the Topic Name
+      // Add Subject Blank Page
       if (!isFirstPage) {
         pdf.addPage();
       } else {
@@ -82,57 +98,69 @@ export default function TopicCameraModal({ close, pdfConfig, calendarData }) {
       pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
       
       pdf.setTextColor(0, 0, 0);
-      pdf.setFontSize(24);
-      const title = `${task.chapter}`;
-      const subtitle = `Date: ${format(new Date(task.date), 'MMM d, yyyy')}`;
-      
-      // Center text
-      const titleWidth = pdf.getTextWidth(title);
-      const subtitleWidth = pdf.getTextWidth(subtitle);
-      pdf.text(title, (pdfWidth - titleWidth) / 2, pdfHeight / 2 - 10);
-      
-      pdf.setFontSize(16);
-      pdf.text(subtitle, (pdfWidth - subtitleWidth) / 2, pdfHeight / 2 + 10);
+      pdf.setFontSize(32);
+      const subjTitle = `Subject: ${group.subject}`;
+      const subjWidth = pdf.getTextWidth(subjTitle);
+      pdf.text(subjTitle, (pdfWidth - subjWidth) / 2, pdfHeight / 2);
 
-      // Add images for this topic
-      for (const dataUrl of images) {
+      // Add Topics
+      for (const task of group.tasks) {
+        const images = topicImages[task.id] || [];
+        if (images.length === 0) continue;
+
+        // Add Topic Blank Page
         pdf.addPage();
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
         
-        // Load image to get dimensions
-        const imgProps = pdf.getImageProperties(dataUrl);
+        pdf.setTextColor(0, 0, 0);
+        pdf.setFontSize(24);
+        const title = `Topic: ${task.chapter}`;
+        const subtitle = `Date: ${format(new Date(task.date), 'MMM d, yyyy')}`;
         
-        // Calculate scaling to fit within A4 without stretching
-        const ratio = Math.min(pdfWidth / imgProps.width, pdfHeight / imgProps.height);
+        const titleWidth = pdf.getTextWidth(title);
+        const subtitleWidth = pdf.getTextWidth(subtitle);
+        pdf.text(title, (pdfWidth - titleWidth) / 2, pdfHeight / 2 - 10);
         
-        // Leave a small margin (e.g. 5mm)
-        const margin = 5;
-        const availableWidth = pdfWidth - (margin * 2);
-        const availableHeight = pdfHeight - (margin * 2);
-        
-        const finalRatio = Math.min(availableWidth / imgProps.width, availableHeight / imgProps.height);
-        const width = imgProps.width * finalRatio;
-        const height = imgProps.height * finalRatio;
-        
-        // Center the image
-        const x = (pdfWidth - width) / 2;
-        const y = (pdfHeight - height) / 2;
-        
-        pdf.addImage(dataUrl, 'JPEG', x, y, width, height);
+        pdf.setFontSize(16);
+        pdf.text(subtitle, (pdfWidth - subtitleWidth) / 2, pdfHeight / 2 + 10);
+
+        // Add images for this topic
+        for (const dataUrl of images) {
+          pdf.addPage();
+          
+          const imgProps = pdf.getImageProperties(dataUrl);
+          const ratio = Math.min(pdfWidth / imgProps.width, pdfHeight / imgProps.height);
+          
+          const margin = 5;
+          const availableWidth = pdfWidth - (margin * 2);
+          const availableHeight = pdfHeight - (margin * 2);
+          
+          const finalRatio = Math.min(availableWidth / imgProps.width, availableHeight / imgProps.height);
+          const width = imgProps.width * finalRatio;
+          const height = imgProps.height * finalRatio;
+          
+          const x = (pdfWidth - width) / 2;
+          const y = (pdfHeight - height) / 2;
+          
+          pdf.addImage(dataUrl, 'JPEG', x, y, width, height);
+        }
       }
     }
 
-    const filename = `${subject}_${format(new Date(startDate), 'MMM_d')}_to_${format(new Date(endDate), 'MMM_d')}.pdf`;
+    const filenamePrefix = subject === 'ALL' ? 'All_Subjects' : subject;
+    const filename = `${filenamePrefix}_${format(new Date(startDate), 'MMM_d')}_to_${format(new Date(endDate), 'MMM_d')}.pdf`;
     pdf.save(filename);
   };
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 9999 }}>
+    <div className="modal-overlay" style={{ zIndex: 9999, alignItems: 'center', justifyContent: 'center' }}>
       <div className="modal-content animate-fade-in" style={{ width: '90%', maxWidth: '800px', height: '80vh', display: 'flex', flexDirection: 'column' }}>
         
         {view === 'list' && (
           <>
             <div className="modal-header">
-              <h3 className="modal-title">Topics: {subject}</h3>
+              <h3 className="modal-title">Topics: {subject === 'ALL' ? 'All Subjects' : subject}</h3>
               <button className="btn btn-icon-bare" onClick={close}><X size={20} color="var(--text-muted)" /></button>
             </div>
             
@@ -141,45 +169,70 @@ export default function TopicCameraModal({ close, pdfConfig, calendarData }) {
                 {format(new Date(startDate), 'MMM d, yyyy')} to {format(new Date(endDate), 'MMM d, yyyy')}
               </p>
               
-              {tasks.length === 0 ? (
+              {groupedTasks.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                   No topics found for this date range.
                 </div>
               ) : (
-                <div className="task-list">
-                  {tasks.map(task => {
-                    const images = topicImages[task.id] || [];
-                    const isDone = images.length > 0;
-                    
-                    return (
-                      <div key={task.id} className={`task-item ${isDone ? 'completed' : ''}`} style={{ cursor: 'default' }}>
-                        <div className="task-checkbox">
-                          {isDone ? <CheckCircle2 size={20} color="#10b981" /> : <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid var(--border-dark)' }} />}
+                <div className="task-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {groupedTasks.map(group => (
+                    <div key={group.subject}>
+                      <button 
+                        onClick={() => toggleSubject(group.subject)}
+                        style={{ 
+                          width: '100%', padding: '14px', display: 'flex', justifyContent: 'space-between', 
+                          alignItems: 'center', backgroundColor: '#2a2a35', border: '1px solid var(--border-dark)', 
+                          borderRadius: '8px', color: 'white', cursor: 'pointer', transition: 'background-color 0.2s' 
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {expandedSubjects[group.subject] ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                          <span style={{ fontWeight: 600, fontSize: '15px' }}>{group.subject}</span>
                         </div>
-                        <div className="task-details" style={{ flex: 1 }}>
-                          <div className="task-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>{task.chapter}</span>
-                            <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 'normal' }}>
-                              {format(new Date(task.date), 'MMM d')}
-                            </span>
-                          </div>
-                          <div className="task-desc">{task.whatToStudy}</div>
-                          {isDone && (
-                            <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px', fontWeight: 600 }}>
-                              {images.length} Image{images.length > 1 ? 's' : ''} Captured
-                            </div>
-                          )}
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                          {group.tasks.length} topics
                         </div>
-                        <button 
-                          className="btn btn-sm btn-outline" 
-                          onClick={() => openCamera(task)}
-                          style={{ marginLeft: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                        >
-                          <Camera size={14} /> {isDone ? 'Add More' : 'Capture'}
-                        </button>
-                      </div>
-                    );
-                  })}
+                      </button>
+                      
+                      {expandedSubjects[group.subject] && (
+                        <div style={{ padding: '8px 0 8px 16px', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '2px solid var(--border-dark)', marginLeft: '8px', marginTop: '4px' }}>
+                          {group.tasks.map(task => {
+                            const images = topicImages[task.id] || [];
+                            const isDone = images.length > 0;
+                            
+                            return (
+                              <div key={task.id} className={`task-item ${isDone ? 'completed' : ''}`} style={{ cursor: 'default' }}>
+                                <div className="task-checkbox">
+                                  {isDone ? <CheckCircle2 size={20} color="#10b981" /> : <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid var(--border-dark)' }} />}
+                                </div>
+                                <div className="task-details" style={{ flex: 1 }}>
+                                  <div className="task-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span>{task.chapter}</span>
+                                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 'normal' }}>
+                                      {format(new Date(task.date), 'MMM d')}
+                                    </span>
+                                  </div>
+                                  <div className="task-desc">{task.whatToStudy}</div>
+                                  {isDone && (
+                                    <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px', fontWeight: 600 }}>
+                                      {images.length} Image{images.length > 1 ? 's' : ''} Captured
+                                    </div>
+                                  )}
+                                </div>
+                                <button 
+                                  className="btn btn-sm btn-outline" 
+                                  onClick={() => openCamera(task)}
+                                  style={{ marginLeft: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                >
+                                  <Camera size={14} /> {isDone ? 'Add More' : 'Capture'}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
