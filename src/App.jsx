@@ -120,8 +120,8 @@ function App() {
 
   const nextPeriod = () => {
     const newDate = view === 'week' ? addDays(currentDate, 7) : addDays(currentDate, 30);
-    if (newDate.getFullYear() > 2027 || (newDate.getFullYear() === 2027 && newDate.getMonth() > 6)) {
-      return; // Do not go after July 2027
+    if (newDate.getFullYear() > 2027 || (newDate.getFullYear() === 2027 && newDate.getMonth() > 7)) {
+      return;
     }
     setCurrentDate(newDate);
   };
@@ -135,7 +135,7 @@ function App() {
   };
 
   const isPrevDisabled = currentDate.getFullYear() === 2026 && currentDate.getMonth() === 8 && (view === 'month' || currentDate.getDate() <= 7);
-  const isNextDisabled = currentDate.getFullYear() === 2027 && currentDate.getMonth() === 6 && (view === 'month' || currentDate.getDate() >= 25);
+  const isNextDisabled = currentDate.getFullYear() === 2027 && currentDate.getMonth() === 7 && (view === 'month' || currentDate.getDate() >= 25);
 
   const progressPercentage = TOTAL_SYLLABUS > 0 ? Math.round((completedTopics.size / TOTAL_SYLLABUS) * 100) : 0;
 
@@ -319,6 +319,15 @@ function SyllabusModal({ close, openPdfSetup }) {
   const [activeSubject, setActiveSubject] = useState(syllabusData[0]);
   const [showSubjectList, setShowSubjectList] = useState(false);
 
+  const subjectEntries = calendarData.filter(e => e.subject === activeSubject.subject);
+  const startDate = subjectEntries.length > 0 ? subjectEntries[0].date : null;
+  const endDate = subjectEntries.length > 0 ? subjectEntries[subjectEntries.length - 1].date : null;
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    return format(new Date(dateStr), 'MMM d, yyyy');
+  };
+
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && close()}>
       <div className="modal-content animate-fade-in syllabus-modal">
@@ -362,7 +371,14 @@ function SyllabusModal({ close, openPdfSetup }) {
 
           <div className="syllabus-topic-panel">
             <div className="syllabus-topic-header">
-              <h4 style={{ fontWeight: 600 }}>{activeSubject.subject}</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <h4 style={{ fontWeight: 600 }}>{activeSubject.subject}</h4>
+                {startDate && endDate && (
+                  <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                    {formatDate(startDate)} — {formatDate(endDate)}
+                  </span>
+                )}
+              </div>
               <span className="topic-count">{activeSubject.topics.length} topics</span>
             </div>
             <ol className="syllabus-topic-list">
